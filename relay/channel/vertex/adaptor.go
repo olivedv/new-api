@@ -78,9 +78,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	region := GetModelRegion(info.ApiVersion, info.OriginModelName)
 	a.AccountCredentials = *adc
 	suffix := ""
+
 	if a.RequestMode == RequestModeGemini {
 		if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
-			// suffix -thinking and -nothinking
 			if strings.HasSuffix(info.OriginModelName, "-thinking") {
 				info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-thinking")
 			} else if strings.HasSuffix(info.OriginModelName, "-nothinking") {
@@ -93,14 +93,26 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		} else {
 			suffix = "generateContent"
 		}
-		return fmt.Sprintf(
-			"https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:%s",
-			region,
-			adc.ProjectID,
-			region,
-			info.UpstreamModelName,
-			suffix,
-		), nil
+
+		if region == "global" {
+			// URL format for global endpoint
+			return fmt.Sprintf(
+				"https://aiplatform.googleapis.com/v1/projects/%s/locations/global/publishers/google/models/%s:%s",
+				adc.ProjectID,
+				info.UpstreamModelName, 
+				suffix,
+			), nil
+		} else {
+			// URL format for regional endpoints
+			return fmt.Sprintf(
+				"https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:%s",
+				region,
+				adc.ProjectID,
+				region,
+				info.UpstreamModelName, 
+				suffix,
+			), nil
+		}
 	} else if a.RequestMode == RequestModeClaude {
 		if info.IsStream {
 			suffix = "streamRawPredict?alt=sse"
@@ -108,8 +120,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			suffix = "rawPredict"
 		}
 		model := info.UpstreamModelName
-		if v, ok := claudeModelMap[info.UpstreamModelName]; ok {
-			model = v
+		if mappedModel, ok := claudeModelMap[info.UpstreamModelName]; ok {
+			model = mappedModel
 		}
 		return fmt.Sprintf(
 			"https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/anthropic/models/%s:%s",
